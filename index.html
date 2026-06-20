@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RodôMetro — Custo de Viagem</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f0f0f;
+  --surf: #1a1a1a;
+  --surf2: #222222;
+  --bord: #2e2e2e;
+  --accent: #e8c547;
+  --text: #f0ede6;
+  --muted: #666;
+  --green: #4caf82;
+  --red: #e05555;
+  --orange: #ff6b35;
+  --blue: #7ca4ff;
+  --purple: #b388ff;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 36px 16px 100px;
+}
+
+/* ── Header ── */
+.header { text-align: center; margin-bottom: 40px; }
+.logo {
+  font-family: Syne, sans-serif;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .3em; color: var(--accent);
+  text-transform: uppercase; margin-bottom: 10px;
+}
+h1 {
+  font-family: Syne, sans-serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 800; line-height: 1.05; margin-bottom: 10px;
+}
+h1 em { color: var(--accent); font-style: normal; }
+.sub { color: var(--muted); font-size: 14px; }
+.sep {
+  display: flex; align-items: center;
+  gap: 10px; justify-content: center; margin: 20px 0;
+}
+.sep span { font-size: 18px; }
+.sep div { height: 1px; background: var(--bord); width: 60px; }
+
+/* ── Card ── */
+.card {
+  background: var(--surf);
+  border: 1px solid var(--bord);
+  border-radius: 16px;
+  padding: 24px 20px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-family: Syne, sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: #555; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::after { content: ''; flex: 1; height: 1px; background: #222; }
+
+/* ── Fields ── */
+.field { margin-bottom: 0; }
+.field + .field { margin-top: 12px; }
+.field label {
+  display: block;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 7px;
+}
+.field input,
+.field select {
+  width: 100%;
+  background: var(--surf2);
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .2s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.field input::placeholder { color: #3a3a3a; }
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+.field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+.field select option { background: #1a1a1a; }
+
+/* ── Grid helpers ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.route-grid { display: grid; grid-template-columns: 1fr 36px 1fr; gap: 8px; align-items: flex-end; }
+.route-arrow { color: var(--accent); font-size: 22px; text-align: center; padding-bottom: 12px; }
+
+/* ── Google autocomplete styling ── */
+.pac-container {
+  background: #1c1c1c !important;
+  border: 1px solid #3a3a3a !important;
+  border-radius: 12px !important;
+  margin-top: 6px !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,.8) !important;
+  font-family: 'DM Sans', sans-serif !important;
+  overflow: hidden !important;
+  z-index: 9999 !important;
+}
+.pac-item {
+  background: #1c1c1c !important;
+  color: #bbb !important;
+  border-top: 1px solid #252525 !important;
+  padding: 12px 16px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  line-height: 1.4 !important;
+  transition: background .1s !important;
+}
+.pac-item:first-child { border-top: none !important; }
+.pac-item:hover,
+.pac-item-selected { background: #252525 !important; }
+.pac-item-query { color: var(--accent) !important; font-weight: 500 !important; }
+.pac-matched { color: var(--accent) !important; font-weight: 600 !important; }
+.pac-icon { display: none !important; }
+.pac-logo::after { display: none !important; }
+.pac-item-description { color: #777 !important; font-size: 12px !important; }
+
+/* ── Fuel buttons ── */
+.fuel-btn {
+  background: var(--surf2);
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  padding: 11px 8px;
+  text-align: center;
+  cursor: pointer;
+  color: #666;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 500;
+  transition: all .15s;
+  width: 100%;
+}
+.fuel-btn .fi { display: block; font-size: 22px; margin-bottom: 4px; }
+.fuel-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(232,197,71,.08);
+}
+
+/* ── Toggles ── */
+.tog-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid #1e1e1e;
+}
+.tog-row:last-child { border-bottom: none; }
+.tog-lbl { font-size: 14px; font-weight: 500; }
+.tog-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.sw { position: relative; width: 46px; height: 26px; flex-shrink: 0; cursor: pointer; }
+.sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+.sw-track {
+  position: absolute; inset: 0;
+  background: #2e2e2e; border-radius: 13px;
+  transition: .2s;
+}
+.sw-track::before {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  left: 3px; top: 3px;
+  background: #555; border-radius: 50%;
+  transition: .2s;
+}
+.sw input:checked + .sw-track { background: var(--accent); }
+.sw input:checked + .sw-track::before { transform: translateX(20px); background: #000; }
+
+/* ── Botão calcular ── */
+.btn-calc {
+  width: 100%; padding: 16px;
+  background: var(--accent); border: none; border-radius: 12px;
+  font-family: Syne, sans-serif; font-size: 16px; font-weight: 700;
+  color: #000; cursor: pointer; letter-spacing: .04em;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 8px; transition: all .15s;
+}
+.btn-calc:hover:not(:disabled) { background: #f5d55a; transform: translateY(-1px); }
+.btn-calc:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+.spin {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(0,0,0,.2);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Erro ── */
+.err-box {
+  background: rgba(224,85,85,.1);
+  border: 1px solid rgba(224,85,85,.3);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: var(--red);
+  font-size: 13px; line-height: 1.5;
+  margin-top: 10px;
+  display: none;
+}
+
+/* ── Rota badge ── */
+.rota-badge {
+  background: rgba(76,175,130,.08);
+  border: 1px solid rgba(76,175,130,.2);
+  border-radius: 10px;
+  padding: 11px 14px;
+  margin-top: 10px;
+  font-size: 13px; color: var(--green);
+  display: none;
+  line-height: 1.5;
+}
+
+/* ── Resultados ── */
+#results {
+  margin-top: 28px;
+  display: none;
+  animation: fadeUp .4s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.res-title {
+  font-family: Syne, sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: #444; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.res-title::after { content: ''; flex: 1; height: 1px; background: #1e1e1e; }
+
+.trip-banner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(232,197,71,.1), rgba(255,107,53,.05));
+  border: 1px solid rgba(232,197,71,.2);
+  border-radius: 16px;
+  padding: 22px 18px;
+  margin-bottom: 16px;
+}
+.ts { text-align: center; }
+.ts-val {
+  font-family: Syne, sans-serif;
+  font-size: 1.3rem; font-weight: 800;
+  color: var(--accent); line-height: 1; margin-bottom: 5px;
+}
+.ts-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+.cost-list { margin-bottom: 0; }
+.cost-item {
+  background: var(--surf);
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 13px;
+  margin-bottom: 8px;
+  transition: border-color .15s;
+}
+.cost-item:hover { border-color: #3a3a3a; }
+.ci-ico {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.ci-info { flex: 1; min-width: 0; }
+.ci-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+.ci-det { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.ci-val { font-family: Syne, sans-serif; font-size: 16px; font-weight: 700; white-space: nowrap; }
+
+.total-box {
+  background: var(--accent);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 14px;
+}
+.tb-left .tb-lbl { font-family: Syne, sans-serif; font-weight: 700; font-size: 15px; color: #000; }
+.tb-left .tb-sub { font-size: 12px; color: rgba(0,0,0,.45); margin-top: 3px; }
+.tb-right { text-align: right; }
+.tb-right .tb-val { font-family: Syne, sans-serif; font-size: 2rem; font-weight: 800; color: #000; line-height: 1; }
+.tb-right .tb-per { font-size: 11px; color: rgba(0,0,0,.45); margin-top: 3px; }
+
+.note-box {
+  background: var(--surf);
+  border: 1px solid var(--bord);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 13px 15px;
+  font-size: 12px; color: var(--muted);
+  margin-top: 13px; line-height: 1.6;
+}
+
+/* ── Responsivo ── */
+@media (max-width: 580px) {
+  .route-grid { grid-template-columns: 1fr; }
+  .route-arrow { transform: rotate(90deg); padding-bottom: 0; padding-top: 2px; height: 30px; display: flex; align-items: center; justify-content: center; }
+  .g2 { grid-template-columns: 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr; }
+  .trip-banner { grid-template-columns: 1fr 1fr; }
+  .total-box { flex-direction: column; align-items: flex-start; }
+  .tb-right { text-align: left; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">🛣️ RodôMetro</div>
+    <h1>Calculadora de<br><em>Custo de Viagem</em></h1>
+    <p class="sub">Endereço real · Distância real · Pedágio real</p>
+    <div class="sep"><div></div><span>⚡</span><div></div></div>
+  </div>
+
+  <!-- Rota -->
+  <div class="card">
+    <div class="card-title">📍 Rota</div>
+    <div class="route-grid">
+      <div class="field">
+        <label>Origem — rua, bairro ou cidade</label>
+        <input type="text" id="origem" placeholder="Ex: Av. Brasil 450, Cornélio Procópio" autocomplete="off" />
+      </div>
+      <div class="route-arrow">→</div>
+      <div class="field">
+        <label>Destino — rua, bairro ou cidade</label>
+        <input type="text" id="destino" placeholder="Ex: Shopping Catuaí, Londrina" autocomplete="off" />
+      </div>
+    </div>
+    <div class="rota-badge" id="rotaBadge"></div>
+  </div>
+
+  <!-- Veículo -->
+  <div class="card">
+    <div class="card-title">🚗 Veículo</div>
+
+    <div class="g2" style="margin-bottom:12px">
+      <div class="field">
+        <label>Marca</label>
+        <select id="marca" onchange="onMarcaChange()">
+          <option value="">— Selecione —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Modelo</label>
+        <select id="modelo" onchange="onModeloChange()">
+          <option value="">— Selecione a marca —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="g2" style="margin-bottom:14px">
+      <div class="field">
+        <label>Condição da Estrada</label>
+        <select id="estrada" onchange="onModeloChange()">
+          <option value="rodovia">Rodovia (estrada livre)</option>
+          <option value="mista" selected>Mista (rodovia + cidade)</option>
+          <option value="cidade">Predominantemente urbano</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Passageiros</label>
+        <select id="passageiros">
+          <option value="1">1 passageiro</option>
+          <option value="2">2 passageiros</option>
+          <option value="3">3 passageiros</option>
+          <option value="4">4 passageiros</option>
+          <option value="5">5 passageiros</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:10px"><label>Combustível</label></div>
+    <div class="g3" style="margin-bottom:14px">
+      <button class="fuel-btn active" id="fb-gasolina" onclick="setFuel('gasolina')">
+        <span class="fi">⛽</span>Gasolina
+      </button>
+      <button class="fuel-btn" id="fb-etanol" onclick="setFuel('etanol')">
+        <span class="fi">🌿</span>Etanol
+      </button>
+      <button class="fuel-btn" id="fb-diesel" onclick="setFuel('diesel')">
+        <span class="fi">🔩</span>Diesel
+      </button>
+    </div>
+
+    <div class="g2">
+      <div class="field">
+        <label>Preço do Combustível (R$/L)</label>
+        <input type="number" id="precoComb" placeholder="Ex: 6,30 — vazio = média nacional" step="0.01" min="0" />
+      </div>
+      <div class="field">
+        <label>Consumo (km/L) — preenchido automaticamente</label>
+        <input type="number" id="consumo" placeholder="Selecione o modelo" step="0.1" min="0" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Extras -->
+  <div class="card">
+    <div class="card-title">⚙️ Custos Adicionais</div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">🛣️ Pedágios</div>
+        <div class="tog-sub">Valor real das praças na rota via Google</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tPedagio" checked><span class="sw-track"></span></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">🔄 Desgaste de Pneus</div>
+        <div class="tog-sub">R$ 0,035/km nos 4 pneus</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tPneu" checked><span class="sw-track"></span></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">🔧 Manutenção (óleo, freios, filtros)</div>
+        <div class="tog-sub">R$ 0,045/km rateado por km rodado</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tManut" checked><span class="sw-track"></span></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">📉 Depreciação do Veículo</div>
+        <div class="tog-sub">R$ 0,12/km — perda de valor por km</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tDeprec"><span class="sw-track"></span></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">🍽️ Alimentação / Paradas</div>
+        <div class="tog-sub">R$ 35 por 200km por passageiro</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tAlim"><span class="sw-track"></span></label>
+    </div>
+    <div class="tog-row">
+      <div>
+        <div class="tog-lbl">🔁 Retorno (ida e volta)</div>
+        <div class="tog-sub">Dobra distância, tempo e todos os custos</div>
+      </div>
+      <label class="sw"><input type="checkbox" id="tIV"><span class="sw-track"></span></label>
+    </div>
+  </div>
+
+  <button class="btn-calc" id="btnCalc" onclick="calcular()">
+    <span id="btnIco">🔍</span>
+    <span id="btnTxt">Calcular Custo da Viagem</span>
+  </button>
+  <div class="err-box" id="errBox"></div>
+
+  <!-- Resultados -->
+  <div id="results">
+    <div class="res-title">📊 Resultado da Viagem</div>
+    <div class="trip-banner" id="tripBanner"></div>
+    <div class="cost-list" id="costList"></div>
+    <div class="total-box" id="totalBox"></div>
+    <div class="note-box" id="noteBox"></div>
+  </div>
+
+</div>
+
+<script>
+// ─── CHAVE API ────────────────────────────────────────────────────────────────
+var API_KEY = 'AIzaSyDiEehvsI2YEf2uuC4c1DDaJ9HpfeoQ3yM';
+
+// ─── BANCO DE VEÍCULOS ────────────────────────────────────────────────────────
+var DB = [
+  // Chevrolet
+  {ma:'Chevrolet', mo:'Onix 1.0',             g:12.8, e:8.9,  d:null},
+  {ma:'Chevrolet', mo:'Onix 1.0 Turbo',        g:13.5, e:9.5,  d:null},
+  {ma:'Chevrolet', mo:'Onix Plus 1.0 Turbo',   g:13.2, e:9.3,  d:null},
+  {ma:'Chevrolet', mo:'Tracker 1.0 Turbo',      g:12.0, e:8.4,  d:null},
+  {ma:'Chevrolet', mo:'Cruze 1.4 Turbo',        g:11.5, e:8.0,  d:null},
+  {ma:'Chevrolet', mo:'S10 2.8 Diesel',         g:null, e:null, d:11.5},
+  {ma:'Chevrolet', mo:'Spin 1.8',               g:10.5, e:7.4,  d:null},
+  {ma:'Chevrolet', mo:'Montana 1.2 Turbo',      g:13.0, e:9.1,  d:null},
+  // Volkswagen
+  {ma:'Volkswagen', mo:'Gol 1.0',               g:12.0, e:8.4,  d:null},
+  {ma:'Volkswagen', mo:'Polo 1.0 Turbo',         g:13.8, e:9.7,  d:null},
+  {ma:'Volkswagen', mo:'Virtus 1.0 Turbo',       g:13.5, e:9.5,  d:null},
+  {ma:'Volkswagen', mo:'T-Cross 1.0 Turbo',      g:12.5, e:8.8,  d:null},
+  {ma:'Volkswagen', mo:'Taos 1.4 Turbo',         g:12.0, e:8.4,  d:null},
+  {ma:'Volkswagen', mo:'Saveiro 1.6',            g:11.5, e:8.1,  d:null},
+  {ma:'Volkswagen', mo:'Amarok 3.0 V6 Diesel',   g:null, e:null, d:10.5},
+  // Fiat
+  {ma:'Fiat', mo:'Argo 1.0',                    g:12.5, e:8.8,  d:null},
+  {ma:'Fiat', mo:'Argo 1.3',                    g:11.8, e:8.3,  d:null},
+  {ma:'Fiat', mo:'Cronos 1.3',                  g:12.0, e:8.4,  d:null},
+  {ma:'Fiat', mo:'Pulse 1.0 Turbo',             g:13.2, e:9.3,  d:null},
+  {ma:'Fiat', mo:'Fastback 1.0 Turbo',          g:12.8, e:9.0,  d:null},
+  {ma:'Fiat', mo:'Strada 1.3',                  g:12.3, e:8.6,  d:null},
+  {ma:'Fiat', mo:'Toro 1.3 Turbo',              g:12.0, e:8.4,  d:null},
+  {ma:'Fiat', mo:'Toro 2.0 Diesel',             g:null, e:null, d:12.5},
+  {ma:'Fiat', mo:'Mobi 1.0',                    g:13.2, e:9.3,  d:null},
+  // Toyota
+  {ma:'Toyota', mo:'Corolla 2.0',               g:13.5, e:9.5,  d:null},
+  {ma:'Toyota', mo:'Corolla Cross 2.0',          g:12.5, e:8.8,  d:null},
+  {ma:'Toyota', mo:'Yaris 1.5',                 g:14.0, e:9.8,  d:null},
+  {ma:'Toyota', mo:'Hilux 2.8 Diesel',           g:null, e:null, d:11.0},
+  {ma:'Toyota', mo:'SW4 2.8 Diesel',             g:null, e:null, d:10.0},
+  {ma:'Toyota', mo:'RAV4 Hybrid',               g:17.5, e:null, d:null},
+  // Honda
+  {ma:'Honda', mo:'Civic 1.5 Turbo',            g:13.5, e:9.5,  d:null},
+  {ma:'Honda', mo:'City 1.5',                   g:13.8, e:9.7,  d:null},
+  {ma:'Honda', mo:'HR-V 1.5 Turbo',             g:13.0, e:9.1,  d:null},
+  {ma:'Honda', mo:'WR-V 1.5',                   g:13.2, e:9.3,  d:null},
+  {ma:'Honda', mo:'CR-V 1.5 Turbo',             g:12.5, e:8.8,  d:null},
+  // Hyundai
+  {ma:'Hyundai', mo:'HB20 1.0',                 g:12.5, e:8.8,  d:null},
+  {ma:'Hyundai', mo:'HB20 1.0 Turbo',           g:13.5, e:9.5,  d:null},
+  {ma:'Hyundai', mo:'HB20S 1.0 Turbo',          g:13.2, e:9.3,  d:null},
+  {ma:'Hyundai', mo:'Creta 1.0 Turbo',          g:12.8, e:9.0,  d:null},
+  {ma:'Hyundai', mo:'Tucson 1.6 Turbo',         g:11.5, e:8.1,  d:null},
+  // Jeep
+  {ma:'Jeep', mo:'Renegade 1.3 Turbo',          g:12.5, e:8.8,  d:null},
+  {ma:'Jeep', mo:'Compass 1.3 Turbo',           g:12.0, e:8.4,  d:null},
+  {ma:'Jeep', mo:'Compass 2.0 Diesel',          g:null, e:null, d:13.0},
+  {ma:'Jeep', mo:'Commander 1.3 Turbo',         g:11.8, e:8.3,  d:null},
+  // Renault
+  {ma:'Renault', mo:'Kwid 1.0',                 g:13.8, e:9.7,  d:null},
+  {ma:'Renault', mo:'Sandero 1.0',              g:12.5, e:8.8,  d:null},
+  {ma:'Renault', mo:'Duster 1.3 Turbo',         g:12.5, e:8.8,  d:null},
+  {ma:'Renault', mo:'Captur 1.3 Turbo',         g:12.8, e:9.0,  d:null},
+  // Ford
+  {ma:'Ford', mo:'Ka 1.0',                      g:13.0, e:9.1,  d:null},
+  {ma:'Ford', mo:'EcoSport 1.5',                g:12.0, e:8.4,  d:null},
+  {ma:'Ford', mo:'Ranger 2.0 Diesel',           g:null, e:null, d:12.0},
+  // Nissan
+  {ma:'Nissan', mo:'Kicks 1.6',                 g:12.8, e:9.0,  d:null},
+  {ma:'Nissan', mo:'Versa 1.6',                 g:13.0, e:9.1,  d:null},
+  {ma:'Nissan', mo:'Frontier 2.3 Diesel',       g:null, e:null, d:11.5},
+  // Mitsubishi
+  {ma:'Mitsubishi', mo:'L200 Triton 2.4 Diesel', g:null, e:null, d:11.0},
+  {ma:'Mitsubishi', mo:'Eclipse Cross 1.5 Turbo', g:12.0, e:8.4, d:null},
+  {ma:'Mitsubishi', mo:'ASX 2.0',               g:12.5, e:8.8,  d:null},
+  // Peugeot
+  {ma:'Peugeot', mo:'208 1.0 Turbo',            g:13.5, e:9.5,  d:null},
+  {ma:'Peugeot', mo:'2008 1.0 Turbo',           g:12.8, e:9.0,  d:null},
+  // Citroën
+  {ma:'Citroën', mo:'C3 1.0 Turbo',             g:13.5, e:9.5,  d:null},
+  // Premium
+  {ma:'Mercedes-Benz', mo:'A200',               g:13.0, e:9.1,  d:null},
+  {ma:'Mercedes-Benz', mo:'GLA 200',            g:12.5, e:8.8,  d:null},
+  {ma:'BMW', mo:'320i',                         g:13.0, e:9.1,  d:null},
+  {ma:'BMW', mo:'X1 sDrive20i',                 g:12.5, e:8.8,  d:null},
+  {ma:'Audi', mo:'A3 1.4 TFSI',                 g:13.0, e:9.1,  d:null},
+  {ma:'Audi', mo:'Q3 1.4 TFSI',                 g:12.5, e:8.8,  d:null},
+  {ma:'RAM', mo:'1500 5.7 V8',                  g:7.5,  e:5.3,  d:null},
+];
+
+var FAT = {rodovia: 1.15, mista: 1.0, cidade: 0.80};
+var PRECO_DEFAULT = {gasolina: 6.30, etanol: 4.20, diesel: 6.80};
+var fuel = 'gasolina';
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  // Preenche marcas
+  var marcas = [];
+  DB.forEach(function(v) { if (marcas.indexOf(v.ma) < 0) marcas.push(v.ma); });
+  marcas.sort();
+  var sel = document.getElementById('marca');
+  marcas.forEach(function(m) {
+    var o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    sel.appendChild(o);
+  });
+
+  // Carrega Google Maps
+  var s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js'
+        + '?key=' + API_KEY
+        + '&libraries=places'
+        + '&callback=initAutocomplete'
+        + '&language=pt-BR'
+        + '&region=BR';
+  s.async = true; s.defer = true;
+  s.onerror = function() {
+    showErr('Não foi possível carregar o Google Maps. Verifique sua conexão e se as APIs estão ativas no Google Cloud Console.');
+  };
+  document.head.appendChild(s);
+});
+
+// ─── AUTOCOMPLETE ─────────────────────────────────────────────────────────────
+window.initAutocomplete = function() {
+  var opts = {
+    componentRestrictions: { country: 'br' },
+    fields: ['formatted_address', 'geometry', 'name'],
+  };
+  new google.maps.places.Autocomplete(document.getElementById('origem'), opts);
+  new google.maps.places.Autocomplete(document.getElementById('destino'), opts);
+};
+
+// ─── VEÍCULO ─────────────────────────────────────────────────────────────────
+function onMarcaChange() {
+  var ma = document.getElementById('marca').value;
+  var sel = document.getElementById('modelo');
+  sel.innerHTML = '<option value="">— Selecione o modelo —</option>';
+  DB.filter(function(v) { return v.ma === ma; }).forEach(function(v) {
+    var o = document.createElement('option');
+    o.value = v.mo; o.textContent = v.mo;
+    sel.appendChild(o);
+  });
+  document.getElementById('consumo').value = '';
+  document.getElementById('consumo').placeholder = 'Selecione o modelo';
+}
+
+function getVeic() {
+  var mo = document.getElementById('modelo').value;
+  if (!mo) return null;
+  return DB.find(function(v) { return v.mo === mo; }) || null;
+}
+
+function onModeloChange() {
+  var v = getVeic();
+  if (!v) return;
+  var estrada = document.getElementById('estrada').value;
+  var fat = FAT[estrada] || 1.0;
+  var base = fuel === 'diesel' ? v.d : fuel === 'etanol' ? v.e : v.g;
+  var campo = document.getElementById('consumo');
+  if (base) {
+    campo.value = (base * fat).toFixed(1);
+    campo.placeholder = 'Dados do fabricante';
+  } else {
+    campo.value = '';
+    campo.placeholder = 'Indisponível para este combustível';
+  }
+}
+
+// ─── COMBUSTÍVEL ──────────────────────────────────────────────────────────────
+function setFuel(tipo) {
+  fuel = tipo;
+  ['gasolina','etanol','diesel'].forEach(function(f) {
+    document.getElementById('fb-' + f).classList.toggle('active', f === tipo);
+  });
+  onModeloChange();
+}
+
+// ─── CALCULAR ─────────────────────────────────────────────────────────────────
+async function calcular() {
+  hideErr();
+  var origem  = document.getElementById('origem').value.trim();
+  var destino = document.getElementById('destino').value.trim();
+  if (!origem || !destino) { showErr('Informe a origem e o destino.'); return; }
+  if (!document.getElementById('modelo').value) { showErr('Selecione o veículo.'); return; }
+
+  setLoading(true);
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('rotaBadge').style.display = 'none';
+
+  try {
+    // 1. Busca rota real
+    var rota = await buscarRota(origem, destino);
+
+    // Mostra badge
+    var badge = document.getElementById('rotaBadge');
+    badge.innerHTML = '✅ <strong>' + rota.km + ' km</strong>'
+      + ' &nbsp;·&nbsp; ⏱️ ' + fmtH(rota.horas)
+      + ' &nbsp;·&nbsp; 🛣️ Pedágios: <strong>' + brl(rota.pedagio) + '</strong>';
+    badge.style.display = 'block';
+
+    // 2. Parâmetros
+    var v        = getVeic();
+    var estrada  = document.getElementById('estrada').value;
+    var fat      = FAT[estrada] || 1.0;
+    var pass     = parseInt(document.getElementById('passageiros').value);
+    var iv       = document.getElementById('tIV').checked;
+    var mult     = iv ? 2 : 1;
+    var kmT      = rota.km * mult;
+    var hT       = rota.horas * mult;
+
+    // Consumo
+    var consumoMan = parseFloat(document.getElementById('consumo').value) || null;
+    var consumo = consumoMan;
+    var cFonte  = 'informado pelo usuário';
+    if (!consumo && v) {
+      var base = fuel === 'diesel' ? v.d : fuel === 'etanol' ? v.e : v.g;
+      if (base) { consumo = parseFloat((base * fat).toFixed(1)); cFonte = 'tabela do fabricante'; }
+    }
+    if (!consumo) {
+      var fb = {gasolina:11.0, etanol:7.7, diesel:11.5};
+      consumo = parseFloat(((fb[fuel]||11.0) * fat).toFixed(1));
+      cFonte = 'estimativa média';
+    }
+
+    var preco   = parseFloat(document.getElementById('precoComb').value) || PRECO_DEFAULT[fuel];
+    var litros  = parseFloat((kmT / consumo).toFixed(2));
+    var cComb   = parseFloat((litros * preco).toFixed(2));
+
+    var tPed  = document.getElementById('tPedagio').checked;
+    var tPneu = document.getElementById('tPneu').checked;
+    var tMan  = document.getElementById('tManut').checked;
+    var tDep  = document.getElementById('tDeprec').checked;
+    var tAli  = document.getElementById('tAlim').checked;
+
+    var cPed  = tPed  ? parseFloat((rota.pedagio * mult).toFixed(2)) : 0;
+    var cPneu = tPneu ? parseFloat((kmT * 0.035).toFixed(2)) : 0;
+    var cMan  = tMan  ? parseFloat((kmT * 0.045).toFixed(2)) : 0;
+    var cDep  = tDep  ? parseFloat((kmT * 0.12).toFixed(2))  : 0;
+    var cAli  = tAli  ? parseFloat((Math.ceil(kmT/200) * 35 * pass).toFixed(2)) : 0;
+
+    var total    = cComb + cPed + cPneu + cMan + cDep + cAli;
+    var porKm    = parseFloat((total / kmT).toFixed(3));
+    var porPass  = parseFloat((total / pass).toFixed(2));
+    var veicNome = v ? v.ma + ' ' + v.mo : document.getElementById('modelo').value;
+
+    renderResultados({
+      kmT, hT, consumo, litros, preco,
+      cComb, cPed, cPneu, cMan, cDep, cAli,
+      total, porKm, porPass, cFonte,
+      iv, tPed, tPneu, tMan, tDep, tAli,
+      pass, veicNome,
+      pedFonte: rota.pedFonte,
+    });
+
+  } catch(e) {
+    showErr(e.message);
+  }
+
+  setLoading(false);
+}
+
+// ─── GOOGLE ROUTES API ────────────────────────────────────────────────────────
+async function buscarRota(origem, destino) {
+  var body = {
+    origin:      { address: origem },
+    destination: { address: destino },
+    travelMode:  'DRIVE',
+    extraComputations: ['TOLLS'],
+    units: 'METRIC',
+    languageCode: 'pt-BR',
+  };
+
+  var resp = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': API_KEY,
+      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.travelAdvisory.tollInfo',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    var err = {};
+    try { err = await resp.json(); } catch(e) {}
+    var msg = (err.error && err.error.message) ? err.error.message : 'Erro HTTP ' + resp.status;
+    throw new Error('Google Routes API: ' + msg + '. Verifique se a Routes API está ativa no Google Cloud Console.');
+  }
+
+  var data = await resp.json();
+  if (!data.routes || !data.routes[0]) {
+    throw new Error('Rota não encontrada. Verifique os endereços digitados.');
+  }
+
+  var route  = data.routes[0];
+  var km     = Math.round(route.distanceMeters / 1000);
+  var seg    = parseInt((route.duration || '0s').replace('s',''));
+  var horas  = parseFloat((seg / 3600).toFixed(2));
+
+  var pedagio = 0;
+  var pedFonte = 'Google Routes API';
+  try {
+    var toll = route.travelAdvisory && route.travelAdvisory.tollInfo;
+    if (toll && toll.estimatedPrice) {
+      toll.estimatedPrice.forEach(function(p) {
+        if (p.currencyCode === 'BRL') {
+          pedagio += parseFloat(p.units || '0') + (p.nanos || 0) / 1e9;
+        }
+      });
+    }
+    if (pedagio === 0) pedFonte = 'sem pedágios nesta rota';
+  } catch(e) { pedFonte = 'não disponível'; }
+
+  return { km, horas, pedagio: parseFloat(pedagio.toFixed(2)), pedFonte };
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderResultados(r) {
+  // Banner
+  document.getElementById('tripBanner').innerHTML =
+    ts(r.kmT + ' km',    r.iv ? 'Ida e Volta' : 'Distância Real') +
+    ts(fmtH(r.hT),       'Duração Estimada') +
+    ts(r.consumo+' km/L', r.veicNome.split(' ').slice(0,2).join(' ')) +
+    ts(r.litros+'L',      'Combustível Total');
+
+  // Itens
+  var itens = [
+    {ok:true,       ico:'⛽', bg:'rgba(76,175,130,.12)',  cor:'var(--green)',
+      nome:'Combustível ('+fuel+')',
+      det: r.litros+'L × '+brl(r.preco)+'/L · '+r.consumo+' km/L ('+r.cFonte+')',
+      val: r.cComb},
+    {ok:r.tPed,     ico:'🛣️', bg:'rgba(232,197,71,.1)',   cor:'var(--accent)',
+      nome:'Pedágios',
+      det: r.pedFonte + (r.iv ? ' — ida e volta' : ''),
+      val: r.cPed},
+    {ok:r.tPneu,    ico:'🔄', bg:'rgba(255,107,53,.1)',   cor:'var(--orange)',
+      nome:'Desgaste de Pneus',
+      det: 'R$0,035/km × '+r.kmT+'km',
+      val: r.cPneu},
+    {ok:r.tMan,     ico:'🔧', bg:'rgba(100,130,255,.1)',  cor:'var(--blue)',
+      nome:'Manutenção (óleo, freios, filtros)',
+      det: 'R$0,045/km rateado por km rodado',
+      val: r.cMan},
+    {ok:r.tDep,     ico:'📉', bg:'rgba(224,85,85,.1)',    cor:'var(--red)',
+      nome:'Depreciação do Veículo',
+      det: 'R$0,12/km — perda de valor por km',
+      val: r.cDep},
+    {ok:r.tAli,     ico:'🍽️', bg:'rgba(179,136,255,.1)', cor:'var(--purple)',
+      nome:'Alimentação / Paradas',
+      det: 'Estimativa para '+r.pass+' passageiro(s)',
+      val: r.cAli},
+  ].filter(function(x) { return x.ok; });
+
+  document.getElementById('costList').innerHTML = itens.map(function(it) {
+    return '<div class="cost-item">'
+      + '<div class="ci-ico" style="background:'+it.bg+'">'+it.ico+'</div>'
+      + '<div class="ci-info"><div class="ci-name">'+it.nome+'</div><div class="ci-det">'+it.det+'</div></div>'
+      + '<div class="ci-val" style="color:'+it.cor+'">'+brl(it.val)+'</div>'
+      + '</div>';
+  }).join('');
+
+  // Total
+  document.getElementById('totalBox').innerHTML =
+    '<div class="tb-left">'
+    + '<div class="tb-lbl">'+(r.iv?'🔁 Total — Ida e Volta':'➡️ Total — Somente Ida')+'</div>'
+    + '<div class="tb-sub">'+r.pass+' passageiro(s) · '+r.veicNome+'</div>'
+    + '</div>'
+    + '<div class="tb-right">'
+    + '<div class="tb-val">'+brl(r.total)+'</div>'
+    + '<div class="tb-per">R$'+r.porKm+'/km · '+brl(r.porPass)+'/pessoa</div>'
+    + '</div>';
+
+  // Nota
+  document.getElementById('noteBox').innerHTML =
+    '<strong>📝 Fontes:</strong> Distância e pedágios via Google Routes API (dados reais das concessionárias). '
+    + 'Consumo: '+r.cFonte+'. Manutenção e pneus: médias do mercado brasileiro 2025.';
+
+  document.getElementById('results').style.display = 'block';
+  setTimeout(function() {
+    document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+  }, 100);
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function ts(val, lbl) {
+  return '<div class="ts"><div class="ts-val">'+val+'</div><div class="ts-lbl">'+lbl+'</div></div>';
+}
+function brl(v) {
+  if (v == null || isNaN(v)) return '—';
+  return 'R$\u00a0' + Number(v).toFixed(2).replace('.', ',');
+}
+function fmtH(h) {
+  if (!h) return '—';
+  var hh = Math.floor(h), mm = Math.round((h-hh)*60);
+  return hh > 0 ? hh+'h'+(mm>0?mm+'min':'') : mm+'min';
+}
+function showErr(msg) {
+  var el = document.getElementById('errBox');
+  el.innerHTML = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+function hideErr() { document.getElementById('errBox').style.display = 'none'; }
+function setLoading(on) {
+  document.getElementById('btnCalc').disabled = on;
+  var ico = document.getElementById('btnIco');
+  if (on) { ico.className = 'spin'; ico.textContent = ''; }
+  else    { ico.className = ''; ico.textContent = '🔍'; }
+  document.getElementById('btnTxt').textContent = on ? 'Calculando rota real...' : 'Calcular Custo da Viagem';
+}
+</script>
+</body>
+</html>
