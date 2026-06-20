@@ -612,13 +612,28 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 // ─── AUTOCOMPLETE ─────────────────────────────────────────────────────────────
+var placeOrig = null, placeDest = null;
+
 window.initAutocomplete = function() {
   var opts = {
     componentRestrictions: { country: 'br' },
     fields: ['formatted_address', 'geometry', 'name'],
   };
-  new google.maps.places.Autocomplete(document.getElementById('origem'), opts);
-  new google.maps.places.Autocomplete(document.getElementById('destino'), opts);
+  var acOrig = new google.maps.places.Autocomplete(document.getElementById('origem'), opts);
+  var acDest = new google.maps.places.Autocomplete(document.getElementById('destino'), opts);
+
+  acOrig.addListener('place_changed', function() {
+    var p = acOrig.getPlace();
+    if (p && p.geometry) placeOrig = p;
+  });
+  acDest.addListener('place_changed', function() {
+    var p = acDest.getPlace();
+    if (p && p.geometry) placeDest = p;
+  });
+
+  // Reset ao digitar manualmente
+  document.getElementById('origem').addEventListener('input', function() { placeOrig = null; });
+  document.getElementById('destino').addEventListener('input', function() { placeDest = null; });
 };
 
 // ─── VEÍCULO ─────────────────────────────────────────────────────────────────
@@ -757,101 +772,84 @@ async function calcular() {
 // ─── BUSCA ROTA usando Google Maps JS API (sem CORS) ─────────────────────────
 function buscarRota(origem, destino) {
   return new Promise(function(resolve, reject) {
-    // Serviços do Google Maps JS SDK (não tem CORS)
-    var geocoder = new google.maps.Geocoder();
     var distService = new google.maps.DistanceMatrixService();
+    var geocoder = new google.maps.Geocoder();
 
-    // Geocodifica origem e destino
-    geocoder.geocode({ address: origem + ', Brasil', region: 'BR' }, function(resO, statusO) {
-      if (statusO !== 'OK' || !resO[0]) { reject(new Error('Origem não encontrada: ' + origem)); return; }
-      geocoder.geocode({ address: destino + ', Brasil', region: 'BR' }, function(resD, statusD) {
-        if (statusD !== 'OK' || !resD[0]) { reject(new Error('Destino não encontrado: ' + destino)); return; }
+    function calcComLocais(locO, locD) {
+      // Distance Matrix para km e tempo
+      distService.getDistanceMatrix({
+        origins: [locO],
+        destinations: [locD],
+        travelMode: google.maps.TravelMode.DRIVING,
+        language: 'pt-BR',
+      }, function(dmData, dmStatus) {
+        var km = 0, horas = 0;
+        if (dmStatus === 'OK') {
+          try {
+            var el = dmData.rows[0].elements[0];
+            km    = Math.round(el.distance.value / 1000);
+            horas = parseFloat((el.duration.value / 3600).toFixed(2));
+          } catch(e) {}
+        }
 
-        var locO = resO[0].geometry.location;
-        var locD = resD[0].geometry.location;
-        var nomeO = resO[0].formatted_address;
-        var nomeD = resD[0].formatted_address;
+        // Routes API para pedágios
+        var lat0 = typeof locO.lat === 'function' ? locO.lat() : locO.lat;
+        var lng0 = typeof locO.lng === 'function' ? locO.lng() : locO.lng;
+        var lat1 = typeof locD.lat === 'function' ? locD.lat() : locD.lat;
+        var lng1 = typeof locD.lng === 'function' ? locD.lng() : locD.lng;
 
-        // Busca distância e tempo via Distance Matrix
-        distService.getDistanceMatrix({
-          origins: [locO],
-          destinations: [locD],
-          travelMode: google.maps.TravelMode.DRIVING,
-          language: 'pt-BR',
-        }, function(dmData, dmStatus) {
-          var km = 0, horas = 0;
-          if (dmStatus === 'OK') {
-            try {
-              var el = dmData.rows[0].elements[0];
-              km    = Math.round(el.distance.value / 1000);
-              horas = parseFloat((el.duration.value / 3600).toFixed(2));
-            } catch(e) {}
-          }
-
-          // Busca pedágios via Google Routes API
-          var grBody = {
-            origin:      { location: { latLng: { latitude: locO.lat(), longitude: locO.lng() } } },
-            destination: { location: { latLng: { latitude: locD.lat(), longitude: locD.lng() } } },
+        fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': API_KEY,
+            'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.travelAdvisory.tollInfo',
+          },
+          body: JSON.stringify({
+            origin:      { location: { latLng: { latitude: lat0, longitude: lng0 } } },
+            destination: { location: { latLng: { latitude: lat1, longitude: lng1 } } },
             travelMode:  'DRIVE',
             extraComputations: ['TOLLS'],
             routeModifiers: { vehicleInfo: { emissionType: 'GASOLINE' } },
-          };
-
-          fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': API_KEY,
-              'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo',
-            },
-            body: JSON.stringify(grBody),
-          })
-          .then(function(r) { return r.json(); })
-          .then(function(grData) {
-            var pedagio = 0;
-            var pedFonte = 'Google Routes API';
-            var pedagioDetalhes = [];
-
-            if (grData.routes && grData.routes[0]) {
-              var rt = grData.routes[0];
-              // Usa distância da Routes API se maior precisão
-              if (rt.distanceMeters) km = Math.round(rt.distanceMeters / 1000);
-              if (rt.duration) horas = parseFloat((parseInt(rt.duration.replace('s','')) / 3600).toFixed(2));
-
-              // Pedágios
-              var toll = rt.travelAdvisory && rt.travelAdvisory.tollInfo;
-              if (toll && toll.estimatedPrice) {
-                toll.estimatedPrice.forEach(function(p) {
-                  if (p.currencyCode === 'BRL') {
-                    pedagio += parseFloat(p.units || '0') + (p.nanos || 0) / 1e9;
-                  }
-                });
-              }
-              if (pedagio > 0) {
-                pedFonte = 'Google Routes API (pedágios estimados)';
-              } else {
-                pedFonte = 'Google Routes API — pedágios não disponíveis para esta rota';
-              }
+          }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(grData) {
+          var pedagio = 0, pedFonte = 'Google Routes API';
+          if (grData.routes && grData.routes[0]) {
+            var rt = grData.routes[0];
+            if (rt.distanceMeters) km = Math.round(rt.distanceMeters / 1000);
+            if (rt.duration) horas = parseFloat((parseInt(rt.duration.replace('s','')) / 3600).toFixed(2));
+            var toll = rt.travelAdvisory && rt.travelAdvisory.tollInfo;
+            if (toll && toll.estimatedPrice) {
+              toll.estimatedPrice.forEach(function(p) {
+                if (p.currencyCode === 'BRL') pedagio += parseFloat(p.units||'0') + (p.nanos||0)/1e9;
+              });
             }
-
-            resolve({
-              km: km,
-              horas: horas,
-              pedagio: parseFloat(pedagio.toFixed(2)),
-              pedFonte: pedFonte,
-              pedagioDetalhes: pedagioDetalhes,
-            });
-          })
-          .catch(function() {
-            resolve({
-              km: km, horas: horas, pedagio: 0,
-              pedFonte: 'Pedágios indisponíveis',
-              pedagioDetalhes: [],
-            });
-          });
+            if (pedagio > 0) pedFonte = 'Google Routes API';
+            else pedFonte = 'pedágios não disponíveis para esta rota no Google';
+          }
+          resolve({ km:km, horas:horas, pedagio:parseFloat(pedagio.toFixed(2)), pedFonte:pedFonte, pedagioDetalhes:[] });
+        })
+        .catch(function() {
+          resolve({ km:km, horas:horas, pedagio:0, pedFonte:'indisponível', pedagioDetalhes:[] });
         });
       });
-    });
+    }
+
+    // Usa coordenadas do autocomplete se disponíveis
+    if (placeOrig && placeOrig.geometry && placeDest && placeDest.geometry) {
+      calcComLocais(placeOrig.geometry.location, placeDest.geometry.location);
+    } else {
+      // Fallback: geocodifica o texto digitado
+      geocoder.geocode({ address: origem + ', Brasil', region: 'BR' }, function(resO, stO) {
+        if (stO !== 'OK' || !resO[0]) { reject(new Error('Endereço de origem não encontrado. Use o autocomplete para selecionar a cidade.')); return; }
+        geocoder.geocode({ address: destino + ', Brasil', region: 'BR' }, function(resD, stD) {
+          if (stD !== 'OK' || !resD[0]) { reject(new Error('Endereço de destino não encontrado. Use o autocomplete para selecionar a cidade.')); return; }
+          calcComLocais(resO[0].geometry.location, resD[0].geometry.location);
+        });
+      });
+    }
   });
 }
 
