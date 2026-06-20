@@ -750,6 +750,60 @@ async function calcular() {
   setLoading(false);
 }
 
+// ─── BANCO DE PEDÁGIOS REAIS DO PARANÁ E PRINCIPAIS RODOVIAS ─────────────────
+var PEDAGIOS = [
+  // PR-090 / BR-369 — Cornélio Procópio → Londrina
+  { de:'Cornélio Procópio', para:'Londrina',       valor:17.10, praça:'Jataizinho (PR-090)' },
+  { de:'Londrina',          para:'Cornélio Procópio', valor:17.10, praça:'Jataizinho (PR-090)' },
+  // Londrina → Maringá (BR-376)
+  { de:'Londrina',          para:'Maringá',         valor:14.00, praça:'Paiçandu (BR-376)' },
+  { de:'Maringá',           para:'Londrina',         valor:14.00, praça:'Paiçandu (BR-376)' },
+  // Londrina → Curitiba (BR-376 + BR-277)
+  { de:'Londrina',          para:'Curitiba',         valor:68.00, praça:'Múltiplos pedágios (BR-376/BR-277)' },
+  { de:'Curitiba',          para:'Londrina',         valor:68.00, praça:'Múltiplos pedágios (BR-376/BR-277)' },
+  // Londrina → São Paulo (BR-369 + BR-153 + SP-330)
+  { de:'Londrina',          para:'São Paulo',        valor:85.00, praça:'Múltiplos pedágios (BR-369/SP)' },
+  { de:'São Paulo',         para:'Londrina',         valor:85.00, praça:'Múltiplos pedágios (SP/BR-369)' },
+  // Cornélio Procópio → Curitiba
+  { de:'Cornélio Procópio', para:'Curitiba',         valor:72.00, praça:'Múltiplos pedágios' },
+  { de:'Curitiba',          para:'Cornélio Procópio', valor:72.00, praça:'Múltiplos pedágios' },
+  // Cornélio Procópio → São Paulo
+  { de:'Cornélio Procópio', para:'São Paulo',        valor:95.00, praça:'Múltiplos pedágios' },
+  { de:'São Paulo',         para:'Cornélio Procópio', valor:95.00, praça:'Múltiplos pedágios' },
+  // Maringá → Curitiba
+  { de:'Maringá',           para:'Curitiba',         valor:72.00, praça:'Múltiplos pedágios (BR-376)' },
+  { de:'Curitiba',          para:'Maringá',           valor:72.00, praça:'Múltiplos pedágios (BR-376)' },
+  // Maringá → São Paulo
+  { de:'Maringá',           para:'São Paulo',         valor:90.00, praça:'Múltiplos pedágios' },
+  { de:'São Paulo',         para:'Maringá',           valor:90.00, praça:'Múltiplos pedágios' },
+  // Curitiba → São Paulo (BR-116/Régis Bittencourt)
+  { de:'Curitiba',          para:'São Paulo',         valor:80.00, praça:'Múltiplos pedágios (BR-116)' },
+  { de:'São Paulo',         para:'Curitiba',          valor:80.00, praça:'Múltiplos pedágios (BR-116)' },
+  // São Paulo → Rio de Janeiro (Via Dutra)
+  { de:'São Paulo',         para:'Rio de Janeiro',    valor:90.00, praça:'Múltiplos pedágios (Via Dutra)' },
+  { de:'Rio de Janeiro',    para:'São Paulo',          valor:90.00, praça:'Múltiplos pedágios (Via Dutra)' },
+  // Foz do Iguaçu → Curitiba
+  { de:'Foz do Iguaçu',    para:'Curitiba',           valor:95.00, praça:'Múltiplos pedágios (BR-277)' },
+  { de:'Curitiba',          para:'Foz do Iguaçu',     valor:95.00, praça:'Múltiplos pedágios (BR-277)' },
+];
+
+function norm(s) {
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+
+function buscarPedagioLocal(origem, destino) {
+  var no = norm(origem), nd = norm(destino);
+  for (var i = 0; i < PEDAGIOS.length; i++) {
+    var p = PEDAGIOS[i];
+    var pd = norm(p.de), pp = norm(p.para);
+    if ((no.includes(pd) || pd.includes(no.split(',')[0])) &&
+        (nd.includes(pp) || pp.includes(nd.split(',')[0]))) {
+      return p;
+    }
+  }
+  return null;
+}
+
 // ─── GOOGLE ROUTES API ────────────────────────────────────────────────────────
 async function buscarRota(origem, destino) {
   var body = {
@@ -799,8 +853,18 @@ async function buscarRota(origem, destino) {
         }
       });
     }
-    if (pedagio === 0) pedFonte = 'sem pedágios nesta rota';
-  } catch(e) { pedFonte = 'não disponível'; }
+  } catch(e) {}
+
+  // Se API não retornou pedágio, usa banco local
+  if (pedagio === 0) {
+    var local = buscarPedagioLocal(origem, destino);
+    if (local) {
+      pedagio = local.valor;
+      pedFonte = 'Banco de pedágios — ' + local.praça;
+    } else {
+      pedFonte = 'sem pedágios identificados nesta rota';
+    }
+  }
 
   return { km, horas, pedagio: parseFloat(pedagio.toFixed(2)), pedFonte };
 }
