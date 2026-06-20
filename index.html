@@ -684,9 +684,13 @@ async function calcular() {
 
     // Mostra badge
     var badge = document.getElementById('rotaBadge');
+    var detStr = rota.pedagioDetalhes && rota.pedagioDetalhes.length > 0
+      ? '<br><small style="opacity:.8">📋 ' + rota.pedagioDetalhes.join(' · ') + '</small>'
+      : '';
     badge.innerHTML = '✅ <strong>' + rota.km + ' km</strong>'
       + ' &nbsp;·&nbsp; ⏱️ ' + fmtH(rota.horas)
-      + ' &nbsp;·&nbsp; 🛣️ Pedágios: <strong>' + brl(rota.pedagio) + '</strong>';
+      + ' &nbsp;·&nbsp; 🛣️ Pedágios: <strong>' + brl(rota.pedagio) + '</strong>'
+      + detStr;
     badge.style.display = 'block';
 
     // 2. Parâmetros
@@ -750,123 +754,133 @@ async function calcular() {
   setLoading(false);
 }
 
-// ─── BANCO DE PEDÁGIOS REAIS DO PARANÁ E PRINCIPAIS RODOVIAS ─────────────────
-var PEDAGIOS = [
-  // PR-090 / BR-369 — Cornélio Procópio → Londrina
-  { de:'Cornélio Procópio', para:'Londrina',       valor:17.10, praça:'Jataizinho (PR-090)' },
-  { de:'Londrina',          para:'Cornélio Procópio', valor:17.10, praça:'Jataizinho (PR-090)' },
-  // Londrina → Maringá (BR-376)
-  { de:'Londrina',          para:'Maringá',         valor:14.00, praça:'Paiçandu (BR-376)' },
-  { de:'Maringá',           para:'Londrina',         valor:14.00, praça:'Paiçandu (BR-376)' },
-  // Londrina → Curitiba (BR-376 + BR-277)
-  { de:'Londrina',          para:'Curitiba',         valor:68.00, praça:'Múltiplos pedágios (BR-376/BR-277)' },
-  { de:'Curitiba',          para:'Londrina',         valor:68.00, praça:'Múltiplos pedágios (BR-376/BR-277)' },
-  // Londrina → São Paulo (BR-369 + BR-153 + SP-330)
-  { de:'Londrina',          para:'São Paulo',        valor:85.00, praça:'Múltiplos pedágios (BR-369/SP)' },
-  { de:'São Paulo',         para:'Londrina',         valor:85.00, praça:'Múltiplos pedágios (SP/BR-369)' },
-  // Cornélio Procópio → Curitiba
-  { de:'Cornélio Procópio', para:'Curitiba',         valor:72.00, praça:'Múltiplos pedágios' },
-  { de:'Curitiba',          para:'Cornélio Procópio', valor:72.00, praça:'Múltiplos pedágios' },
-  // Cornélio Procópio → São Paulo
-  { de:'Cornélio Procópio', para:'São Paulo',        valor:95.00, praça:'Múltiplos pedágios' },
-  { de:'São Paulo',         para:'Cornélio Procópio', valor:95.00, praça:'Múltiplos pedágios' },
-  // Maringá → Curitiba
-  { de:'Maringá',           para:'Curitiba',         valor:72.00, praça:'Múltiplos pedágios (BR-376)' },
-  { de:'Curitiba',          para:'Maringá',           valor:72.00, praça:'Múltiplos pedágios (BR-376)' },
-  // Maringá → São Paulo
-  { de:'Maringá',           para:'São Paulo',         valor:90.00, praça:'Múltiplos pedágios' },
-  { de:'São Paulo',         para:'Maringá',           valor:90.00, praça:'Múltiplos pedágios' },
-  // Curitiba → São Paulo (BR-116/Régis Bittencourt)
-  { de:'Curitiba',          para:'São Paulo',         valor:80.00, praça:'Múltiplos pedágios (BR-116)' },
-  { de:'São Paulo',         para:'Curitiba',          valor:80.00, praça:'Múltiplos pedágios (BR-116)' },
-  // São Paulo → Rio de Janeiro (Via Dutra)
-  { de:'São Paulo',         para:'Rio de Janeiro',    valor:90.00, praça:'Múltiplos pedágios (Via Dutra)' },
-  { de:'Rio de Janeiro',    para:'São Paulo',          valor:90.00, praça:'Múltiplos pedágios (Via Dutra)' },
-  // Foz do Iguaçu → Curitiba
-  { de:'Foz do Iguaçu',    para:'Curitiba',           valor:95.00, praça:'Múltiplos pedágios (BR-277)' },
-  { de:'Curitiba',          para:'Foz do Iguaçu',     valor:95.00, praça:'Múltiplos pedágios (BR-277)' },
-];
-
-function norm(s) {
-  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-}
-
-function buscarPedagioLocal(origem, destino) {
-  var no = norm(origem), nd = norm(destino);
-  for (var i = 0; i < PEDAGIOS.length; i++) {
-    var p = PEDAGIOS[i];
-    var pd = norm(p.de), pp = norm(p.para);
-    if ((no.includes(pd) || pd.includes(no.split(',')[0])) &&
-        (nd.includes(pp) || pp.includes(nd.split(',')[0]))) {
-      return p;
-    }
+// ─── GEOCODIFICA ENDEREÇO → coordenadas via Google ───────────────────────────
+async function geocodificar(endereco) {
+  var url = 'https://maps.googleapis.com/maps/api/geocode/json?address='
+    + encodeURIComponent(endereco + ', Brasil')
+    + '&key=' + API_KEY + '&language=pt-BR&region=BR';
+  var r = await fetch(url);
+  var d = await r.json();
+  if (d.results && d.results[0]) {
+    var loc = d.results[0].geometry.location;
+    var nome = d.results[0].formatted_address;
+    return { lat: loc.lat, lng: loc.lng, nome: nome };
   }
-  return null;
+  throw new Error('Endereço não encontrado: ' + endereco);
 }
 
-// ─── GOOGLE ROUTES API ────────────────────────────────────────────────────────
+// ─── BUSCA ROTA: RotasBrasil (pedágios reais) + Google (distância/tempo) ─────
 async function buscarRota(origem, destino) {
-  var body = {
-    origin:      { address: origem },
-    destination: { address: destino },
-    travelMode:  'DRIVE',
-    extraComputations: ['TOLLS'],
-    units: 'METRIC',
-    languageCode: 'pt-BR',
-  };
+  // 1. Geocodifica os dois endereços
+  var geoO = await geocodificar(origem);
+  var geoD = await geocodificar(destino);
 
-  var resp = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': API_KEY,
-      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.travelAdvisory.tollInfo',
-    },
-    body: JSON.stringify(body),
-  });
+  // 2. Google Distance Matrix para distância e tempo reais
+  var gmUrl = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+    + '?origins=' + geoO.lat + ',' + geoO.lng
+    + '&destinations=' + geoD.lat + ',' + geoD.lng
+    + '&mode=driving&language=pt-BR&key=' + API_KEY;
 
-  if (!resp.ok) {
-    var err = {};
-    try { err = await resp.json(); } catch(e) {}
-    var msg = (err.error && err.error.message) ? err.error.message : 'Erro HTTP ' + resp.status;
-    throw new Error('Google Routes API: ' + msg + '. Verifique se a Routes API está ativa no Google Cloud Console.');
-  }
+  var gmResp = await fetch(gmUrl);
+  var gmData = await gmResp.json();
 
-  var data = await resp.json();
-  if (!data.routes || !data.routes[0]) {
-    throw new Error('Rota não encontrada. Verifique os endereços digitados.');
-  }
-
-  var route  = data.routes[0];
-  var km     = Math.round(route.distanceMeters / 1000);
-  var seg    = parseInt((route.duration || '0s').replace('s',''));
-  var horas  = parseFloat((seg / 3600).toFixed(2));
-
-  var pedagio = 0;
-  var pedFonte = 'Google Routes API';
+  var km = 0, horas = 0;
   try {
-    var toll = route.travelAdvisory && route.travelAdvisory.tollInfo;
-    if (toll && toll.estimatedPrice) {
-      toll.estimatedPrice.forEach(function(p) {
-        if (p.currencyCode === 'BRL') {
-          pedagio += parseFloat(p.units || '0') + (p.nanos || 0) / 1e9;
+    var el = gmData.rows[0].elements[0];
+    km    = Math.round(el.distance.value / 1000);
+    horas = parseFloat((el.duration.value / 3600).toFixed(2));
+  } catch(e) {
+    // fallback se falhar
+    km    = 100;
+    horas = 1.5;
+  }
+
+  // 3. RotasBrasil para pedágios reais (carro 2 eixos)
+  var pedagio = 0;
+  var pedFonte = 'RotasBrasil.com.br';
+  var pedagioDetalhes = [];
+
+  try {
+    var rbUrl = 'https://www.rotasbrasil.com.br/roterizador/buscaRota/'
+      + '?pontos=' + geoO.lng + ',' + geoO.lat + ';' + geoD.lng + ',' + geoD.lat
+      + '&alternatives=false'
+      + '&eixos=2'
+      + '&veiculo=1'
+      + '&origem=' + encodeURIComponent(geoO.nome)
+      + '&destino=' + encodeURIComponent(geoD.nome)
+      + '&combustivel=6.30'
+      + '&consumo=10'
+      + '&evitarPedagio=false'
+      + '&recaptchaRespostaCliente=';
+
+    var rbResp = await fetch(rbUrl, {
+      headers: { 'Referer': 'https://www.rotasbrasil.com.br/', 'Origin': 'https://www.rotasbrasil.com.br' }
+    });
+    var rbData = await rbResp.json();
+
+    if (rbData.routes && rbData.routes[0] && rbData.routes[0].pedagios) {
+      var lista = rbData.routes[0].pedagios;
+      lista.forEach(function(p) {
+        // p[7] = valor em string tipo "14,500", p[4] = concessionária, p[5] = nome da praça
+        var valorStr = (p[7] || '0').toString().replace(',','.');
+        var valor = parseFloat(valorStr);
+        if (!isNaN(valor) && valor > 0) {
+          pedagio += valor;
+          pedagioDetalhes.push(p[5] + ' (' + p[4] + '): R$' + valor.toFixed(2).replace('.',','));
         }
       });
+      if (lista.length > 0) {
+        // Usa distância do RotasBrasil se disponível
+        if (rbData.routes[0].distance) {
+          km = Math.round(rbData.routes[0].distance / 1000);
+        }
+        if (rbData.routes[0].duration) {
+          horas = parseFloat((rbData.routes[0].duration / 3600).toFixed(2));
+        }
+      }
+      if (pedagio === 0) pedFonte = 'RotasBrasil — sem pedágios nesta rota';
     }
-  } catch(e) {}
-
-  // Se API não retornou pedágio, usa banco local
-  if (pedagio === 0) {
-    var local = buscarPedagioLocal(origem, destino);
-    if (local) {
-      pedagio = local.valor;
-      pedFonte = 'Banco de pedágios — ' + local.praça;
-    } else {
-      pedFonte = 'sem pedágios identificados nesta rota';
-    }
+  } catch(e) {
+    pedFonte = 'Google Routes API (RotasBrasil indisponível)';
+    // Fallback: tenta Google Routes API
+    try {
+      var grBody = {
+        origin: { location: { latLng: { latitude: geoO.lat, longitude: geoO.lng } } },
+        destination: { location: { latLng: { latitude: geoD.lat, longitude: geoD.lng } } },
+        travelMode: 'DRIVE',
+        extraComputations: ['TOLLS'],
+      };
+      var grResp = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': API_KEY,
+          'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.travelAdvisory.tollInfo',
+        },
+        body: JSON.stringify(grBody),
+      });
+      var grData = await grResp.json();
+      if (grData.routes && grData.routes[0]) {
+        var rt = grData.routes[0];
+        km = Math.round(rt.distanceMeters / 1000);
+        horas = parseFloat((parseInt((rt.duration||'0s').replace('s','')) / 3600).toFixed(2));
+        var toll = rt.travelAdvisory && rt.travelAdvisory.tollInfo;
+        if (toll && toll.estimatedPrice) {
+          toll.estimatedPrice.forEach(function(p) {
+            if (p.currencyCode === 'BRL') pedagio += parseFloat(p.units||'0') + (p.nanos||0)/1e9;
+          });
+        }
+      }
+    } catch(e2) {}
   }
 
-  return { km, horas, pedagio: parseFloat(pedagio.toFixed(2)), pedFonte };
+  return {
+    km: km,
+    horas: horas,
+    pedagio: parseFloat(pedagio.toFixed(2)),
+    pedFonte: pedFonte,
+    pedagioDetalhes: pedagioDetalhes,
+  };
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
